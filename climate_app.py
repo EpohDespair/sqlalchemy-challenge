@@ -1,5 +1,7 @@
 # import dependencies
 import numpy as np
+import pandas as pd
+import datetime as dt
 import sqlalchemy
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.orm import Session
@@ -42,20 +44,45 @@ def home():
 def precip():
 # create session
     session = Session(engine)
+    # query precips
     precip = session.query(measurement.date, measurement.prcp).all()
     session.close()
     all_precip = list(np.ravel(precip))
     return jsonify(all_precip)
 
 # # station query page
-# @app.route("/api/v1.0/stations")
-# def stations():
-#     return jsonify()
+@app.route("/api/v1.0/stations")
+def stations():
+    # create session
+    session = Session(engine)
+    # query all stations
+    stations = session.query(station.station).all()
+    session.close()
+    all_stations = list(np.ravel(stations))
+    return jsonify(all_stations)
 
 # # temperature query page
-# @app.route("/api/v1.0/tobs")
-# def tobs():
-#     return jsonify()
+@app.route("/api/v1.0/tobs")
+def tobs():
+    # create session
+    session = Session(engine)
+    # query temps for last year for most active station
+    # find most active station
+    most_active = session.query(measurement.station, func.count(measurement.station)).\
+                order_by(func.count(measurement.station).desc()).\
+                group_by(measurement.station).all()
+    most_active_station = most_active[0][0]
+    # define last year by finding most recent, making it a string and then subtracting 365 days
+    most_recent = session.query(measurement.date).order_by(measurement.date.desc()).first()[0]
+    most_recent_str = (dt.datetime.strptime(most_recent, "%Y-%m-%d")).date()
+    date_1yrago = most_recent_str - dt.timedelta(days = 365)
+    most_active_temp = pd.DataFrame(session.query(measurement.tobs).\
+                                filter((measurement.station == most_active_station)\
+                                        & (measurement.date >= date_1yrago)).all())
+    session.close()
+    temps_lastyr = list(np.ravel(most_active_temp))
+
+    return jsonify(temps_lastyr)
 
 ####The hard part####
 
